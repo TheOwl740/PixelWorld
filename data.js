@@ -18,49 +18,49 @@ let gameState = "home"
 let d, dd, s, ss;
 //setup image tree
 const images = {
-    buttons: {
-    },
-    tiles: {
-        grassyPlains: {
-            terrain: {
-                grass: [
-                    tk.generateImage("Images/Tiles/GrassyPlains/Terrain/Grass/grass0.png"),
-                    tk.generateImage("Images/Tiles/GrassyPlains/Terrain/Grass/grass1.png")
-                ]
-            },
-            structures: {
+  buttons: {
+  },
+  tiles: {
+    grassyPlains: {
+      terrain: {
+        grass: [
+          tk.generateImage("Images/Tiles/GrassyPlains/Terrain/Grass/grass0.png"),
+          tk.generateImage("Images/Tiles/GrassyPlains/Terrain/Grass/grass1.png")
+        ]
+      },
+      structures: {
 
-            },
-            misc: {
+      },
+      misc: {
 
-            }
-        }
+      }
     }
+  }
 };
 //setup seed data
 const seed = {
-    constant: "31415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170675713913216",
-    base: [],
-    full: "",
-    generateFSeed: () => {
-        let lastNum = false;
-        seed.base.forEach((currentNum) => {
-            if(lastNum !== false) {
-                seed.full += seed.constant.slice(Number(lastNum + currentNum), Number(lastNum + currentNum) + 10);
-                lastNum = currentNum;
-            } else {
-                lastNum = currentNum;
-            }
-        });
-    },
-    pseudoRandom(input, digits) {
-        if((input + digits) <= seed.full.length) {
-            returnValue = seed.full.slice(input, input + digits);
-        } else {
-            returnValue = seed.full.slice(input, seed.full.length);
-            returnValue += seed.full.slice(0, (input + digits) - seed.full.length);
-        }
-        return Number(returnValue)
+  constant: "31415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170675713913216",
+  base: [],
+  full: "",
+  generateFSeed: () => {
+    let lastNum = false;
+    seed.base.forEach((currentNum) => {
+      if(lastNum !== false) {
+        seed.full += seed.constant.slice(Number(lastNum + currentNum), Number(lastNum + currentNum) + 10);
+        lastNum = currentNum;
+      } else {
+        lastNum = currentNum;
+      }
+    });
+  },
+  pseudoRandom(input, digits) {
+    if((input + digits) <= seed.full.length) {
+      returnValue = seed.full.slice(input, input + digits);
+    } else {
+      returnValue = seed.full.slice(input, seed.full.length);
+      returnValue += seed.full.slice(0, (input + digits) - seed.full.length);
     }
+    return Number(returnValue)
+  }
 }
 //FUNCTIONS
