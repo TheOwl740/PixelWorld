@@ -1,6 +1,9 @@
 //INITIALISATION
-//generate base seed
-//run seed generation
+//setup menu interface
+const menuInterface = {
+  newGameButton: landscape ? new Button(new Pair(cs.w * 0.35, cs.w * -0.42), cs.w * 0.25, cs.h * 0.1) : new Button(new Pair(cs.w * 0.5, cs.h * -0.4), cs.w * 0.7, cs.h * 0.1),
+  loadGameButton: landscape ? new Button(new Pair(cs.w * 0.65, cs.w * -0.42), cs.w * 0.25, cs.h * 0.1) : new Button(new Pair(cs.w * 0.5, cs.h * -0.6), cs.w * 0.7, cs.h * 0.1)
+};
 //GAME
 //main loop
 function runGlobalCycle() {
@@ -10,31 +13,12 @@ function runGlobalCycle() {
   switch(gameState) {
     //main menu
     case "home":
-      //prompt for base seed
-      let seedEntry = prompt("Welcome. Please enter an 11 digit numerical seed or press enter for a random generated seed.");
-      //assign random if prompt is an invalid seed or empty
-      if(seedEntry.length !== 11 || Number(seedEntry) / Number(seedEntry) !== 1) {
-        seedEntry = "";
-        for(let i = 0; i < 11; i++) {
-          seedEntry += tk.randomNum(0, 9).toString();
-        }
-      }
-      //generate full seed
-      seed = new Seed(seedEntry);
-      //instantiate world
-      world = new World();
-      //begin generation
-      world.generate();
-      //start game
-      gameState = "generation";
-      break;
-    //world generation
-    case "generation":
+      updateHomeMenu();
       break;
     //ingame
     case "inGame":
-      //run player controls
-      evaluateInput();
+      //run camera controls
+      rt.camera = new Pair(player.transform.x - (cs.w / 2), player.transform.y + (cs.h / 2));
       //prepare for frame
       cs.fillAll(new Fill("black", 1));
       //render the map

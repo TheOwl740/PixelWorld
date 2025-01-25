@@ -9,24 +9,25 @@ const et = new EventTracker();
 const rt = new RenderTool(cs);
 //canvas setup
 cs.setDimensions(window.innerWidth, window.innerHeight);
+//device layout bool
+const landscape = cs.w > cs.h ? true : false;
 //context removal event disabler
 et.rightClickEnabled = false;
 et.tabEnabled = false;
 //gameState for game control
-let gameState = "home";
+let gameState = "unloaded";
 //base variables
 let world;
 let seed;
-//player container variable
 let player;
+let tm;
 //counters
 let ec = 0;
-let tc = 0;
-//render pipeline
-const renderPipeline = [];
 //OBJECTS
 //setup image tree
 const images = {
+  logo: tk.generateImage("Images/logo.png"),
+  menuBackground: tk.generateImage("Images/menuBackground.png"),
   buttons: {
   },
   player: {
@@ -64,34 +65,28 @@ const images = {
     }
   }
 };
-//CLASSES
-//seed class
-class Seed {
-  constructor(base) {
-    //raw seed
-    this.value = "";
-    let constant = "31415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170675713913216";
-    let lastNum = false;
-    let currentNum;
-    for(let i = 0; i < base.length; i++) {
-      currentNum = base.slice(i, i + 1);
-      if(lastNum !== false) {
-        this.value += constant.slice(Number(lastNum + currentNum), Number(lastNum + currentNum) + 10);
-        lastNum = currentNum;
-      } else {
-        lastNum = currentNum;
-      }
+//fonts
+const pixelFont = new FontFace('pixelFont', 'url(pixelFont.ttf)');
+pixelFont.load().then((font) => {
+  document.fonts.add(font);
+  gameState = "home";
+});
+//UTILITY CLASSES
+//button class
+class Button {
+  constructor(transform, w, h) {
+    this.transform = transform;
+    this.rectangle = new Rectangle(0, w, h);
+  }
+  render() {
+    if(tk.detectCollision(et.cursor, new Collider(this.transform, this.rectangle)) && (landscape || et.getClick("left"))) {
+      rt.renderRectangle(this.transform, this.rectangle, new Fill("#AB9", 1), new Border("#897", 1, 10, "bevel"));
+    } else {
+      rt.renderRectangle(this.transform, this.rectangle, new Fill("#897", 1), new Border("#675", 1, 10, "bevel"));
     }
   }
-  pseudoRandom(input, digits) {
-    let returnValue;
-    if((input + digits) <= this.value.length) {
-      returnValue = this.value.slice(input, input + digits);
-    } else {
-      returnValue = this.value.slice(input, this.value.length);
-      returnValue += this.value.slice(0, (input + digits) - this.value.length);
-    }
-    return Number(returnValue);
+  getPress() {
+    return (tk.detectCollision(et.cursor, new Collider(this.transform, this.rectangle)) && et.getClick("left"));
   }
 }
 //tile template
@@ -158,7 +153,7 @@ class Chunk {
   }
   //updates baking and renders
   render() {
-    if(tk.calcDistance(this.transform, player.transform) < cs.w * 1.5) {
+    if(tk.calcDistance(this.transform, player.transform) < (landscape ? cs.w : cs.h) * 1.5) {
       if(this.cs === false) {
         this.cs = new Canvas(document.createElement("canvas"));
         this.cs.setDimensions(world.spatialUnit * 16, world.spatialUnit * 16);
@@ -174,11 +169,63 @@ class Chunk {
     }
   }
 }
+class Item {
+  constructor(id) {
+    this.id = id;
+    this.value;
+    this.icon;
+
+  }
+}
+//armor item subclass
+class Armor extends Item {
+  constructor(id, tier, level, enchantment, curse) {
+    super(id);
+    this.tier = tier;
+    this.level = level;
+    this.enchantment = enchantment;
+    this.curse = curse;
+    this.identified = false;
+  }
+  calculateReduction(damage, type) {
+    return tk.randomNum((1 * this.level) ** (1 + (this.tier / 5)), (6 * this.level) ** (1 + (this.tier / 5)));
+  }
+}
+//SAVE CLASSES
+//seed class
+class Seed {
+  constructor(base) {
+    //raw seed
+    this.value = "";
+    let constant = "31415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170675713913216";
+    let lastNum = false;
+    let currentNum;
+    for(let i = 0; i < base.length; i++) {
+      currentNum = base.slice(i, i + 1);
+      if(lastNum !== false) {
+        this.value += constant.slice(Number(lastNum + currentNum), Number(lastNum + currentNum) + 10);
+        lastNum = currentNum;
+      } else {
+        lastNum = currentNum;
+      }
+    }
+  }
+  pseudoRandom(input, digits) {
+    let returnValue;
+    if((input + digits) <= this.value.length) {
+      returnValue = this.value.slice(input, input + digits);
+    } else {
+      returnValue = this.value.slice(input, this.value.length);
+      returnValue += this.value.slice(0, (input + digits) - this.value.length);
+    }
+    return Number(returnValue);
+  }
+}
 //world template
 class World {
   constructor() {
     //spatial unit for sizing
-    this.spatialUnit = window.innerHeight / 32;
+    this.spatialUnit = window.innerHeight / 16;
     //chunk data
     this.chunks = [];
     //mountains, lakes
@@ -188,22 +235,18 @@ class World {
   }
   //generates a new map
   generate() {
-    const genProcess = new Promise((resolve) => {
-      console.log("generating");
-      //generate chunks
-      for(let i = 0; i < 4096; i++) {
-        this.chunks.push(new Chunk(i, new Pair(((i % 64) * this.spatialUnit * 16) + (this.spatialUnit * 7.5), (Math.floor(i / 64) * this.spatialUnit * 16) + (this.spatialUnit * 7.5))));
-        this.chunks[i].generate();
-      }
-      resolve();
-    });
-    genProcess.then(() => {
-      //note completion
-      console.log("generated");
-      //assign player
-      player = new Player(world);
-      gameState = "inGame";
-    });
+    //generate chunks
+    for(let i = 0; i < 4096; i++) {
+      this.chunks.push(new Chunk(i, new Pair(((i % 64) * this.spatialUnit * 16) + (this.spatialUnit * 7.5), (Math.floor(i / 64) * this.spatialUnit * 16) + (this.spatialUnit * 7.5))));
+      this.chunks[i].generate();
+    }
+    //assign player
+    player = new Player(world);
+    //assign turn manager
+    tm = new TurnManager();
+    tm.add(player);
+    //start game
+    gameState = "inGame";
   }
   //converts between indexes and transforms
   positionConverter(pair, isTransform) {
@@ -221,52 +264,127 @@ class World {
     });
   }
 }
-//armor class
-class Armor {
-  constructor(tier, level, enchantment, curse) {
-    this.tier = tier;
-    this.level = level;
-    this.enchantment = enchantment;
-    this.curse = curse;
-    this.identified = false;
-  }
-  calculateReduction(damage, type) {
-    return tk.randomNum((1 * this.level) ** (1 + (this.tier / 5)), (6 * this.level) ** (1 + (this.tier / 5)));
-  }
-}
 //player class
 class Player {
-  constructor(world) {
+  constructor() {
+    this.id = "player";
+    //next turn number the player will take
+    this.nextTurn = 1;
+    //current directive from player input
+    this.currentTarget = false;
     //transform position in pixels
     this.transform = world.positionConverter(world.positionConverter(new Pair(tk.randomNum(7000, 18000), tk.randomNum(7000, 18000)), true), false);
+    //image object for rendering
+    this.image = new Img(images.player.right.idle, 1, 0, 0, world.spatialUnit * 0.25, world.spatialUnit * 1.25, world.spatialUnit * 1.25, false, false);
+    //player level
     this.level = 1;
+    //player hp data
     this.hp = {
       current: 10,
       max: () => {
         return 15 + (this.level * 5);
       }
     };
+    //armor slot
     this.armor = new Armor(1, 1, null, null);
+    //weapon slot
     this.weapon = null;
+    //effects stack
     this.effects = [];
   }
   render() {
-    rt.renderRectangle(this.transform, new Rectangle(45, world.spatialUnit, world.spatialUnit), new Fill("black", 1), null);
+    rt.renderImage(this.transform, this.image);
+  }
+  update() {
+    //if it's the player's turn
+    if(tm.turnQueue[0].id === "player") {
+
+    }
+  }
+}
+//turn manager updates turn order
+class TurnManager {
+  constructor() {
+    this.turnQueue = [];
+    this.turn = 0;
+  }
+  next(increment) {
+    this.turn += increment;
+    this.turnQueue.sort((a, b) => {
+      return a.nextTurn - b.nextTurn;
+    });
+  }
+  add(entity) {
+    this.turnQueue.push(entity);
+    this.turnQueue.sort((a, b) => {
+      return a.nextTurn - b.nextTurn;
+    });
+  }
+}
+//entity manager updates entity ai and turn order
+class EntityManager {
+  constructor() {
+    this.entities = [];
+    this.currentId = 0;
+  }
+  add(entity) {
+    currentId++;
+    entity.id = currentId;
+    this.entities.push(entity);
   }
 }
 //FUNCTIONS
-function evaluateInput() {
-  if(et.getKey("a")) {
-    player.transform.x -= 5;
+function updateHomeMenu() {
+  if(landscape) {
+    //background
+    rt.renderImage(new Pair(cs.w / 2, cs.h / -2), new Img(images.menuBackground, 1, 0, 0, 0, cs.w, cs.w, false, false));
+    //logo
+    rt.renderImage(new Pair(cs.w * 0.5, cs.w * -0.2), new Img(images.logo, 1, 0, 0, 0, cs.w * 0.5, cs.w * 0.3, false, false));
+    //new game button
+    menuInterface.newGameButton.render();
+    rt.renderText(new Pair(cs.w * 0.25, cs.w * -0.438), new TextNode("pixelFont", "New Game", 0, cs.w / 20), new Fill("#000", 1));
+    //load game button
+    menuInterface.loadGameButton.render();
+    rt.renderText(new Pair(cs.w * 0.545, cs.w * -0.438), new TextNode("pixelFont", "Load Game", 0, cs.w / 20), new Fill("#000", 1));
+  } else {
+    //background
+    rt.renderImage(new Pair(cs.w / 2, cs.h / -2), new Img(images.menuBackground, 1, 0, 0, 0, cs.h, cs.h, false, false));
+    //logo
+    rt.renderImage(new Pair(cs.w * 0.5, cs.h * -0.16), new Img(images.logo, 1, 0, 0, 0, cs.w * 0.8, cs.w * 0.5, false, false));
+    //new game button
+    menuInterface.newGameButton.render();
+    rt.renderText(new Pair(cs.w * 0.24, cs.h * -0.418), new TextNode("pixelFont", "New Game", 0, cs.h / 17), new Fill("#000", 1));
+    //load game button
+    menuInterface.loadGameButton.render();
+    rt.renderText(new Pair(cs.w * 0.22, cs.h * -0.618), new TextNode("pixelFont", "Load Game", 0, cs.h / 17), new Fill("#000", 1));
   }
-  if(et.getKey("d")) {
-    player.transform.x += 5;
+  if(menuInterface.newGameButton.getPress() && seed === undefined) {
+    //prompt for base seed
+    /*let seedEntry = prompt("Please enter an 11 digit numerical seed or press enter for a random generated seed.");
+    //assign random if prompt is an invalid seed or empty
+    if(seedEntry.length !== 11 || Number(seedEntry) / Number(seedEntry) !== 1) {
+      seedEntry = "";
+      for(let i = 0; i < 11; i++) {
+        seedEntry += tk.randomNum(0, 9).toString();
+      }
+    }*/
+    //random seed
+    let seedEntry;
+    for(let i = 0; i < 11; i++) {
+      seedEntry += tk.randomNum(0, 9).toString();
+    }
+    //generate full seed
+    seed = new Seed(seedEntry);
+    //instantiate world
+    world = new World();
+    //render generating screen
+    cs.fillAll(new Fill("black", 1));
+    rt.renderText(new Pair(cs.w * 0.25, cs.h / -2), new TextNode("pixelFont", "Generating...", 0, cs.w / 50), new Fill("white", 1));
+    window.setTimeout(() => {
+      world.generate();
+    }, 0);
   }
-  if(et.getKey("w")) {
-    player.transform.y += 5;
+  if(menuInterface.loadGameButton.getPress()) {
+
   }
-  if(et.getKey("s")) {
-    player.transform.y -= 5;
-  }
-  rt.camera = new Pair(player.transform.x - (cs.w / 2), player.transform.y + (cs.h / 2));
 }
